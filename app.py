@@ -4,33 +4,68 @@ import openpyxl
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import shutil
 from datetime import datetime
 from google import genai
 from google.genai import types
 
 # ==========================================
-# 1. CONFIGURACIÓN INICIAL DEL SISTEMA
+# 1. CONFIGURACIÓN INICIAL Y ESTÉTICA (MOON)
 # ==========================================
-st.set_page_config(page_title="Ops Combustible - Moon Flight", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="Ops Combustible - Moon", page_icon="🌙", layout="wide")
+
+# CSS Personalizado: Colores Azul/Blanco y Animación de Avión Flotando
+st.markdown("""
+<style>
+    /* Animación del avión flotando */
+    @keyframes flotar {
+        0% { transform: translateY(0px) translateX(0px); }
+        50% { transform: translateY(-10px) translateX(0px); }
+        100% { transform: translateY(0px) translateX(0px); }
+    }
+    .avion-animado {
+        font-size: 3rem;
+        display: inline-block;
+        animation: flotar 3s ease-in-out infinite;
+        margin-right: 15px;
+    }
+    
+    /* Tema de colores Azul y Blanco (Marca Moon) */
+    h1, h2, h3, h4 {
+        color: #003366 !important; 
+    }
+    
+    /* Estilo de los botones principales */
+    .stButton>button {
+        background-color: #004080 !important;
+        color: white !important;
+        border-radius: 8px;
+        border: 2px solid #0059b3;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #0059b3 !important;
+        box-shadow: 0px 4px 10px rgba(0, 51, 102, 0.3);
+        transform: scale(1.02);
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Conexión Segura con Google AI (Gemini)
 try:
-    cliente_genai = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception:
-    # Si corre localmente y no hay secrets, intenta leer las variables de entorno de la PC
-    cliente_genai = genai.Client()
+    client = genai.Client()
 
 CARPETA_IMAGENES = "imagenes_tiquetes"
 os.makedirs(CARPETA_IMAGENES, exist_ok=True)
 RUTA_EXCEL = "Base_Datos_Combustible_Moon.xlsx"
 
-# Función robusta para crear el Excel desde cero si no existe
 def inicializar_excel():
     if not os.path.exists(RUTA_EXCEL):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Consumos"
-        # Exactamente 12 columnas ordenadas como solicitaste
         cabeceras = [
             "FECHA REGISTRO", "RECIBO", "FECHA CONSUMO", "MATRICULA", 
             "PRODUCTO", "RUTA", "CONSUMO (GAL)", "VALOR UNIT", 
@@ -44,7 +79,7 @@ inicializar_excel()
 # ==========================================
 # 2. BARRA DE NAVEGACIÓN
 # ==========================================
-st.sidebar.title("✈️ Moon Flight Ops")
+st.sidebar.markdown("<h2 style='text-align: center; color: #003366;'>🌙 Moon Ops</h2>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 vista = st.sidebar.radio("Navegación:", ["📸 Registro en Pista", "📊 Panel Directivo"])
 
@@ -52,24 +87,28 @@ vista = st.sidebar.radio("Navegación:", ["📸 Registro en Pista", "📊 Panel 
 # VISTA 1: PILOTOS (Registro en Pista)
 # ==========================================
 if vista == "📸 Registro en Pista":
-    st.title("Registro Rápido de Tiquetes")
-    st.markdown("Sube la foto del tiquete Terpel. La IA completará el reporte en Excel automáticamente.")
+    # Encabezado interactivo con avión animado
+    st.markdown("""
+        <div style="display: flex; align-items: center; justify-content: center; background-color: #f0f8ff; padding: 20px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #003366;">
+            <div class="avion-animado">✈️</div>
+            <h1 style="margin: 0; color: #003366;">Registro de Combustible</h1>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.info("⚠️ **IMPORTANTE:** Sube **UN SOLO** recibo por fotografía para evitar confusiones en el sistema.")
 
-    archivo_subido = st.file_uploader("Capturar foto del recibo", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    archivo_subido = st.file_uploader("Capturar foto del recibo Terpel", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
     if archivo_subido is not None:
         st.image(archivo_subido, caption="Foto lista para enviar", use_container_width=True)
         
-        # Precio configurable por el operario antes de enviar
         precio_unitario = st.number_input("Precio por galón (COP) hoy:", min_value=0.0, value=19500.0, step=100.0)
 
         if st.button("🚀 Enviar y Procesar Tiquete", use_container_width=True, type="primary"):
-            with st.spinner("La Inteligencia Artificial está leyendo los datos..."):
+            with st.spinner("La IA de Moon está analizando el tiquete..."):
                 try:
-                    # Leer bytes de la imagen
                     image_bytes = archivo_subido.getvalue()
 
-                    # Prompt blindado
                     prompt = """
                     Analiza esta imagen de un tiquete de combustible Terpel firmado a mano. Extrae:
                     - "recibo": Número del Tiquete (ej. 02-1243808).
@@ -85,153 +124,169 @@ if vista == "📸 Registro en Pista":
                     Si la foto es ilegible, devuelve: {"exito": false}
                     """
 
-                    respuesta = cliente_genai.models.generate_content(
+                    response = client.models.generate_content(
                         model='gemini-3.8-flash',
                         contents=[types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg'), prompt]
                     )
                     
-                    # Limpieza extrema del texto para evitar errores de formato
-                    texto_limpio = respuesta.text.replace('```json', '').replace('```', '').strip()
+                    texto_limpio = response.text.replace('```json', '').replace('```', '').strip()
                     datos = json.loads(texto_limpio)
 
                     if not datos.get("exito"):
-                        st.error("⚠️ La foto está muy borrosa. Por favor, tómala de nuevo asegurándote de enfocar bien el papel.")
+                        st.error("⚠️ La foto está muy borrosa. Por favor, tómala de nuevo.")
                     else:
-                        # 1. Crear Nomenclatura Única
                         fecha_str = datetime.now().strftime("%Y%m%d_%H%M%S")
                         num_recibo = str(datos.get("recibo", "SREC")).replace("/", "-").replace(" ", "")
                         nombre_imagen = f"Recibo_{num_recibo}_{fecha_str}.jpg"
                         ruta_guardado = os.path.join(CARPETA_IMAGENES, nombre_imagen)
                         
-                        # 2. Guardar Imagen Físicamente
                         with open(ruta_guardado, "wb") as f:
                             f.write(image_bytes)
 
-                        # 3. Cálculos Financieros Asegurados (forzando formato float numérico)
                         galones = float(datos.get("consumo", 0.0))
                         valor_total = galones * float(precio_unitario)
 
-                        # 4. Guardar en Excel
                         wb = openpyxl.load_workbook(RUTA_EXCEL)
                         hoja = wb.active
                         
-                        # Exactamente 12 datos para 12 columnas
                         nueva_fila = [
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 1. FECHA REGISTRO
-                            datos.get("recibo"),                          # 2. RECIBO
-                            datos.get("fecha_consumo"),                   # 3. FECHA CONSUMO
-                            datos.get("matricula"),                       # 4. MATRICULA
-                            datos.get("producto"),                        # 5. PRODUCTO
-                            datos.get("ruta"),                            # 6. RUTA
-                            galones,                                      # 7. CONSUMO (GAL) -> Numérico
-                            precio_unitario,                              # 8. VALOR UNIT -> Numérico
-                            valor_total,                                  # 9. VALOR TOTAL -> Numérico
-                            datos.get("piloto"),                          # 10. PILOTO
-                            nombre_imagen,                                # 11. NOMENCLATURA IMAGEN
-                            "Procesado exitosamente por IA"               # 12. OBSERVACION
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            datos.get("recibo"),
+                            datos.get("fecha_consumo"),
+                            datos.get("matricula"),
+                            datos.get("producto"),
+                            datos.get("ruta"),
+                            galones,
+                            precio_unitario,
+                            valor_total,
+                            datos.get("piloto"),
+                            nombre_imagen,
+                            "Procesado automáticamente"
                         ]
                         
                         hoja.append(nueva_fila)
                         wb.save(RUTA_EXCEL)
 
-                        # 5. Confirmación Visual al Piloto
-                        st.success("✅ ¡Tiquete registrado y guardado en la base de datos maestra!")
-                        st.info(f"💾 Código de Archivo: **{nombre_imagen}**")
+                        st.success("✅ ¡Tiquete registrado y guardado con éxito!")
                         
                         col_r1, col_r2 = st.columns(2)
                         col_r1.metric("Galones Registrados", f"{galones} GAL")
                         col_r2.metric("Valor Estimado", f"$ {valor_total:,.0f} COP")
 
-                except json.JSONDecodeError:
-                    st.error("⚠️ La IA no pudo estructurar la información. Intenta con una foto más recta.")
                 except Exception as e:
-                    st.error(f"❌ Ocurrió un error inesperado: {e}")
+                    st.error(f"❌ Ocurrió un error inesperado al leer: {e}")
 
 # ==========================================
-# VISTA 2: PANEL DIRECTIVO Y DASHBOARDS
+# VISTA 2: PANEL DIRECTIVO (Protegido con Clave)
 # ==========================================
 elif vista == "📊 Panel Directivo":
-    st.title("📊 Panel de Inteligencia de Negocios (BI) - Moon Flight")
+    st.markdown("<h1 style='color: #003366;'>🔒 Acceso Administrativo - Moon</h1>", unsafe_allow_html=True)
     
-    # Intentar leer la base de datos
-    try:
-        df = pd.read_excel(RUTA_EXCEL)
-    except Exception:
-        st.error("Error crítico leyendo el archivo de base de datos.")
-        df = pd.DataFrame()
-
-    if len(df) > 0:
-        # Forzar formatos numéricos para los gráficos (Auditoría de seguridad)
-        df["CONSUMO (GAL)"] = pd.to_numeric(df["CONSUMO (GAL)"], errors='coerce').fillna(0)
-        df["VALOR TOTAL"] = pd.to_numeric(df["VALOR TOTAL"], errors='coerce').fillna(0)
-
-        # --- 1. KPI GLOBALES ---
-        st.subheader("Resumen Financiero y Operativo")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        tiquetes_hoy = len(df[df["FECHA REGISTRO"].astype(str).str.contains(datetime.now().strftime("%Y-%m-%d"))])
-        
-        col1.metric("Tiquetes Totales", len(df))
-        col2.metric("Operaciones de Hoy", tiquetes_hoy)
-        col3.metric("Total Galones", f"{df['CONSUMO (GAL)'].sum():,.1f} GAL")
-        col4.metric("Costo Total Invertido", f"$ {df['VALOR TOTAL'].sum():,.0f} COP")
-        
-        st.markdown("---")
-
-        # --- 2. GRÁFICOS INTERACTIVOS ---
-        st.subheader("Análisis de Consumo")
-        col_g1, col_g2 = st.columns(2)
-        
-        with col_g1:
-            # Gráfico de barras: Consumo por avión
-            df_matricula = df.groupby("MATRICULA")["CONSUMO (GAL)"].sum().reset_index()
-            fig_mat = px.bar(df_matricula, x="MATRICULA", y="CONSUMO (GAL)", 
-                             title="Galones consumidos por Aeronave",
-                             labels={"CONSUMO (GAL)": "Galones", "MATRICULA": "Avión"},
-                             color="MATRICULA")
-            st.plotly_chart(fig_mat, use_container_width=True)
-
-        with col_g2:
-            # Gráfico circular: Gasto por destino
-            df_ruta = df.groupby("RUTA")["VALOR TOTAL"].sum().reset_index()
-            fig_ruta = px.pie(df_ruta, names="RUTA", values="VALOR TOTAL", 
-                              title="Distribución de Dinero Invertido por Ruta",
-                              hole=0.4)
-            st.plotly_chart(fig_ruta, use_container_width=True)
-
-        st.markdown("---")
-
-        # --- 3. TABLA Y DESCARGAS ---
-        st.subheader("Base de Datos Maestra (Excel)")
-        st.dataframe(df, use_container_width=True)
-
-        with open(RUTA_EXCEL, "rb") as f:
-            st.download_button(
-                label="📥 Descargar Archivo Excel Actualizado",
-                data=f,
-                file_name="MoonFlight_Control_Combustible.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
-        
+    # Sistema de Seguridad (Clave)
+    clave = st.text_input("Ingrese la contraseña para acceder al panel de control:", type="password")
+    
+    if clave != "adminmoon" and clave != "":
+        st.error("❌ Contraseña incorrecta. Acceso denegado.")
+    
+    elif clave == "adminmoon":
+        st.success("✅ Acceso concedido.")
         st.markdown("---")
         
-        # --- 4. AUDITORÍA VISUAL ---
-        st.subheader("🔍 Auditoría Visual de Recibos y Firmas")
-        imagenes = os.listdir(CARPETA_IMAGENES)
-        
-        if imagenes:
-            img_sel = st.selectbox("Buscar recibo físico guardado (Nomenclatura):", reversed(imagenes))
-            ruta_img = os.path.join(CARPETA_IMAGENES, img_sel)
-            st.image(ruta_img, caption=f"Evidencia: {img_sel}", width=500)
+        try:
+            df = pd.read_excel(RUTA_EXCEL)
+        except Exception:
+            df = pd.DataFrame()
+
+        if len(df) > 0:
+            df["CONSUMO (GAL)"] = pd.to_numeric(df["CONSUMO (GAL)"], errors='coerce').fillna(0)
+            df["VALOR TOTAL"] = pd.to_numeric(df["VALOR TOTAL"], errors='coerce').fillna(0)
+
+            st.subheader("📊 Resumen Financiero y Operativo")
+            col1, col2, col3 = st.columns(3)
             
-            # Botón de descarga individual
-            with open(ruta_img, "rb") as f:
-                st.download_button(f"📥 Descargar {img_sel}", data=f, file_name=img_sel)
+            col1.metric("Tiquetes Totales", len(df))
+            col2.metric("Total Galones", f"{df['CONSUMO (GAL)'].sum():,.1f} GAL")
+            col3.metric("Gasto Estimado", f"$ {df['VALOR TOTAL'].sum():,.0f} COP")
+            
+            st.markdown("---")
+
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                df_matricula = df.groupby("MATRICULA")["CONSUMO (GAL)"].sum().reset_index()
+                # Gráfico azul corporativo
+                fig_mat = px.bar(df_matricula, x="MATRICULA", y="CONSUMO (GAL)", 
+                                 title="Galones por Aeronave",
+                                 color_discrete_sequence=['#004080'])
+                st.plotly_chart(fig_mat, use_container_width=True)
+
+            with col_g2:
+                df_ruta = df.groupby("RUTA")["VALOR TOTAL"].sum().reset_index()
+                # Gráfico de pastel en tonos azules
+                fig_ruta = px.pie(df_ruta, names="RUTA", values="VALOR TOTAL", 
+                                  title="Dinero Invertido por Ruta",
+                                  color_discrete_sequence=px.colors.sequential.Blues_r)
+                st.plotly_chart(fig_ruta, use_container_width=True)
+
+            st.subheader("📑 Base de Datos Maestra (Excel)")
+            st.dataframe(df, use_container_width=True)
+
+            with open(RUTA_EXCEL, "rb") as f:
+                st.download_button(
+                    label="📥 Descargar Base de Datos Completa",
+                    data=f,
+                    file_name="Moon_Control_Combustible.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            
+            st.markdown("---")
+            
+            # ZONA DE PELIGRO: Borrar Datos Específicos o Totales
+            with st.expander("⚙️ Zona de Mantenimiento (Borrar Datos)"):
+                
+                # OPCIÓN 1: Borrar un registro específico
+                st.markdown("#### 🗑️ Borrar un tiquete específico (Por error o prueba)")
+                opciones_borrar = df["NOMENCLATURA IMAGEN"].tolist()
+                
+                if opciones_borrar:
+                    registro_a_borrar = st.selectbox(
+                        "Selecciona el archivo del tiquete que deseas eliminar:", 
+                        opciones_borrar,
+                        help="Busca el nombre del archivo en la tabla de arriba en la columna 'NOMENCLATURA IMAGEN'"
+                    )
+                    
+                    if st.button("Borrar Tiquete Seleccionado"):
+                        # Borrar la imagen física
+                        ruta_img_borrar = os.path.join(CARPETA_IMAGENES, registro_a_borrar)
+                        if os.path.exists(ruta_img_borrar):
+                            os.remove(ruta_img_borrar)
+                        
+                        # Borrar la fila del Excel
+                        wb = openpyxl.load_workbook(RUTA_EXCEL)
+                        hoja = wb.active
+                        # Recorremos el excel para buscar esa nomenclatura exacta (Columna K es la 11)
+                        for row in range(2, hoja.max_row + 1):
+                            if str(hoja.cell(row=row, column=11).value) == str(registro_a_borrar):
+                                hoja.delete_rows(row)
+                                break # Rompe el ciclo cuando lo encuentra y lo borra
+                        wb.save(RUTA_EXCEL)
+                        
+                        st.success(f"✅ Se eliminó correctamente el recibo '{registro_a_borrar}'. Por favor recarga la página para actualizar las gráficas y la tabla.")
+                else:
+                    st.info("No hay recibos individuales para borrar.")
+
+                st.markdown("---")
+                
+                # OPCIÓN 2: Borrar todo (Formateo Total)
+                st.markdown("#### 🚨 Formateo Total del Sistema")
+                st.warning("⚠️ Si haces clic aquí, se borrarán TODOS los registros y la base de datos quedará en cero.")
+                if st.button("Borrar Todos los Registros del Sistema"):
+                    if os.path.exists(RUTA_EXCEL):
+                        os.remove(RUTA_EXCEL)
+                    if os.path.exists(CARPETA_IMAGENES):
+                        shutil.rmtree(CARPETA_IMAGENES)
+                    
+                    inicializar_excel()
+                    os.makedirs(CARPETA_IMAGENES, exist_ok=True)
+                    st.success("✅ Base de datos borrada exitosamente desde cero. Por favor, recarga la página web.")
         else:
-            st.info("La base de datos tiene registros, pero las imágenes fuente fueron limpiadas o movidas.")
-            
-    else:
-        # Estado 0: Cuando el Excel apenas se creó y no hay ningún tiquete procesado
-        st.info("🟢 El sistema está operativo y el archivo Excel maestro está inicializado, pero aún no se ha subido el primer tiquete de combustible.")
-        st.markdown("¡Ve a la vista **Registro en Pista** para subir la primera foto de prueba!")
+            st.info("🟢 El panel está listo. No hay registros en la base de datos aún.")
