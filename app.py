@@ -14,19 +14,18 @@ from google import genai
 from google.genai import types
 
 # ============================================================
-# MOONFLIGHT | FUEL INTELLIGENCE
-# Interfaz renovada para registro y control ejecutivo de combustible.
+# MOON · AEROLÍNEA | FUEL INTELLIGENCE
 # ============================================================
 
 st.set_page_config(
-    page_title="Moonflight | Fuel Intelligence",
+    page_title="Moon · Aerolínea",
     page_icon="🌙",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ----------------------------
-# Identidad visual
+# Identidad visual y Corrección de Texto
 # ----------------------------
 NAVY = "#0B1D33"
 NAVY_2 = "#142D4C"
@@ -161,7 +160,7 @@ st.markdown(
     .mini-label {{ color:{BLUE}; font-size:10px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:5px; }}
     .footer-line {{ border-top:1px solid {BORDER}; margin-top:28px; padding-top:15px; color:#9AA7B6; font-size:10px; letter-spacing:.4px; }}
 
-    /* Controles */
+    /* Controles y visibilidad de texto en campos */
     .stTextInput label, .stNumberInput label, .stFileUploader label, .stDateInput label {{
         color:{INK} !important; font-size:12px !important; font-weight:700 !important;
     }}
@@ -170,10 +169,12 @@ st.markdown(
         background:#F8FAFD !important; padding:20px !important;
     }}
     [data-testid="stFileUploader"] section:hover {{ border-color:{BLUE} !important; background:#F3F7FC !important; }}
+    
     .stTextInput input, .stNumberInput input {{
         border-radius:10px !important; border-color:#DCE4ED !important;
-        background:#FFFFFF !important; min-height:43px;
+        background:#FFFFFF !important; color: #0B1D33 !important; font-weight: 700 !important; min-height:43px;
     }}
+    
     .stButton > button, .stDownloadButton > button {{
         border-radius:10px !important; min-height:43px;
         border:1px solid {NAVY} !important;
@@ -216,7 +217,6 @@ os.makedirs(CARPETA_IMAGENES, exist_ok=True)
 
 
 def get_setting(key: str):
-    """Lee primero Streamlit Secrets y luego variables de entorno."""
     try:
         value = st.secrets.get(key)
         if value:
@@ -257,8 +257,8 @@ def render_brand():
         <div class="brand-lockup">
             <div class="brand-symbol">M</div>
             <div>
-                <div class="brand-name">MOONFLIGHT</div>
-                <div class="brand-sub">OPERATIONS INTELLIGENCE</div>
+                <div class="brand-name">MOON</div>
+                <div class="brand-sub">AEROLÍNEA · OPERACIONES</div>
             </div>
         </div>
         <div class="side-caption">CENTRO DE OPERACIONES</div>
@@ -322,7 +322,7 @@ vista = st.sidebar.radio(
 st.sidebar.markdown(
     """
     <div class="sidebar-foot">
-        <strong>MOONFLIGHT · FUEL INTELLIGENCE</strong><br>
+        <strong>MOON · AEROLÍNEA</strong><br>
         Control centralizado de consumos, soportes y costos de combustible.
     </div>
     """,
@@ -346,7 +346,7 @@ if vista == "Registro en pista":
     st.markdown(
         """
         <div class="hero-panel">
-            <div class="hero-kicker">FLIGHT OPERATIONS · DIGITAL RECORD</div>
+            <div class="hero-kicker">MOON AEROLÍNEA · DIGITAL RECORD</div>
             <div class="hero-title">Cada abastecimiento, bajo control.</div>
             <div class="hero-copy">Registra el comprobante, extrae automáticamente los datos clave y consolida el consumo de cada aeronave en una sola fuente de información.</div>
             <div class="hero-mark">M.</div>
@@ -496,7 +496,7 @@ if vista == "Registro en pista":
                     st.error(f"No fue posible completar el procesamiento: {exc}")
 
     st.markdown(
-        '<div class="footer-line">MOONFLIGHT · FUEL INTELLIGENCE &nbsp; / &nbsp; REGISTRO OPERATIVO</div>',
+        '<div class="footer-line">MOON · AEROLÍNEA &nbsp; / &nbsp; REGISTRO OPERATIVO</div>',
         unsafe_allow_html=True,
     )
 
@@ -654,7 +654,7 @@ elif vista == "Panel directivo":
                     st.download_button(
                         "Descargar base de datos",
                         data=f.read(),
-                        file_name="Moonflight_Control_Combustible.xlsx",
+                        file_name="Moon_Control_Combustible.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True,
                     )
@@ -693,6 +693,6 @@ elif vista == "Panel directivo":
             st.info("Todavía no hay registros en la base de datos. Utiliza el módulo Registro en pista para comenzar.")
 
     st.markdown(
-        '<div class="footer-line">MOONFLIGHT · FUEL INTELLIGENCE &nbsp; / &nbsp; EXECUTIVE DASHBOARD</div>',
+        '<div class="footer-line">MOON · AEROLÍNEA &nbsp; / &nbsp; EXECUTIVE DASHBOARD</div>',
         unsafe_allow_html=True,
     )
