@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 # ----------------------------
-# Identidad visual y Corrección de Texto
+# Identidad visual y Corrección de Títulos y Textos
 # ----------------------------
 NAVY = "#0B1D33"
 NAVY_2 = "#142D4C"
@@ -108,13 +108,13 @@ st.markdown(
     }}
     .sidebar-foot strong {{ color:#F4E7C9; letter-spacing:.5px; }}
 
-    /* Encabezados y superficies */
+    /* Encabezados y superficies (Corregido color de títulos principales) */
     .eyebrow {{
         color:{BLUE}; font-size:10px; font-weight:800;
         letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;
     }}
     .page-title {{
-        color:{NAVY}; font-family:'Manrope',sans-serif;
+        color: {NAVY} !important; font-family:'Manrope',sans-serif;
         font-weight:800; font-size:clamp(27px, 3vw, 38px);
         letter-spacing:-1.3px; line-height:1.12; margin:0;
     }}
