@@ -442,7 +442,7 @@ if vista == "Registro en pista":
                     """
                     with st.spinner("Analizando el comprobante y estructurando el registro..."):
                         response = client.models.generate_content(
-                            model="gemini-3.8-flash",
+                            model="gemini-3.8-flash-lite",
                             contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type), prompt],
                         )
                         datos = clean_json_response(response.text)
