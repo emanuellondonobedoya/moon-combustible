@@ -3,7 +3,6 @@ import json
 import re
 import hmac
 import base64
-import shutil
 import time
 from datetime import datetime
 
@@ -14,7 +13,7 @@ import streamlit as st
 import anthropic
 
 # ============================================================
-# MOON · AEROLÍNEA | FUEL INTELLIGENCE (Interactive & Editable)
+# MOON · AEROLÍNEA | FUEL INTELLIGENCE (Interactive & BI Dashboards)
 # ============================================================
 
 st.set_page_config(
@@ -42,19 +41,14 @@ st.markdown(
     
     /* CORRECCIÓN: Textos blancos invisibles y Caja de subida */
     .stFileUploader label, .stTextInput label, .stNumberInput label {{
-        color: {NAVY} !important;
-        font-weight: 800 !important;
-        font-size: 14px !important;
+        color: {NAVY} !important; font-weight: 800 !important; font-size: 14px !important;
     }}
     [data-testid="stFileUploadDropzone"] {{
-        background-color: #FFFFFF !important;
-        border: 2px dashed #AABCD0 !important;
-        border-radius: 16px !important;
-        transition: all 0.3s ease;
+        background-color: #FFFFFF !important; border: 2px dashed #AABCD0 !important;
+        border-radius: 16px !important; transition: all 0.3s ease;
     }}
     [data-testid="stFileUploadDropzone"]:hover {{
-        border-color: {BLUE} !important;
-        background-color: #F0F4F8 !important;
+        border-color: {BLUE} !important; background-color: #F0F4F8 !important;
     }}
     [data-testid="stFileUploadDropzone"] * {{ color: {INK} !important; }}
     
@@ -67,11 +61,10 @@ st.markdown(
     .hero-mark {{
         position:absolute; right:32px; top:50%;
         color:rgba(232,214,180,.85); font-family:'Manrope',sans-serif; 
-        font-weight:800; font-size:54px; opacity:.82;
-        animation: float 4s ease-in-out infinite; /* Animación de movimiento */
+        font-weight:800; font-size:54px; opacity:.82; animation: float 4s ease-in-out infinite;
     }}
 
-    /* DISEÑO DE PANELES */
+    /* DISEÑO DE PANELES Y TARJETAS BI */
     .hero-panel {{ position:relative; overflow:hidden; border-radius:22px; padding:27px 30px; margin: 8px 0 24px 0; background:linear-gradient(115deg, {NAVY} 0%, #12375A 62%, #1A4568 100%); box-shadow: 0 10px 25px rgba(11,29,51,0.15); }}
     .hero-kicker {{ color:#D9C39A; font-size:10px; font-weight:800; letter-spacing:2px; text-transform:uppercase; }}
     .hero-title {{ color:#FFFFFF; font-family:'Manrope',sans-serif; font-size:25px; font-weight:800; letter-spacing:-.6px; margin-top:8px; }}
@@ -80,21 +73,20 @@ st.markdown(
     .page-title {{ color: {NAVY} !important; font-family:'Manrope',sans-serif; font-weight:800; font-size:clamp(27px, 3vw, 38px); letter-spacing:-1.3px; line-height:1.12; margin:0; }}
     .section-heading {{ color:{NAVY}; font-family:'Manrope',sans-serif; font-size:17px; font-weight:800; letter-spacing:-.3px; margin: 22px 0 4px 0; }}
     
+    .metric-card {{ background:{WHITE}; border:1px solid #E5EAF1; border-radius:16px; padding:17px 18px 16px 18px; box-shadow:0 5px 18px rgba(16,39,66,.035); margin-bottom: 15px; }}
+    .metric-label {{ color:#718096; font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }}
+    .metric-value {{ color:{NAVY}; font-family:'Manrope',sans-serif; font-size:25px; font-weight:800; margin-top:10px; line-height:1.15; }}
+    
     /* BOTONES INTERACTIVOS */
-    .stButton > button {{
-        border-radius:12px !important; background:{NAVY} !important; color:{WHITE} !important; 
-        font-weight:700 !important; border: none !important; transition: all 0.3s ease !important;
-    }}
-    .stButton > button:hover {{
-        background:#12375A !important; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(11,29,51,0.2);
-    }}
+    .stButton > button {{ border-radius:12px !important; background:{NAVY} !important; color:{WHITE} !important; font-weight:700 !important; border: none !important; transition: all 0.3s ease !important; }}
+    .stButton > button:hover {{ background:#12375A !important; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(11,29,51,0.2); }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ----------------------------
-# Configuración (Bases de Datos)
+# Configuración (Bases de Datos y Utilidades)
 # ----------------------------
 CARPETA_IMAGENES = "imagenes_tiquetes"
 RUTA_DIARIO = "Registro_Diario_Moon.xlsx"
@@ -128,6 +120,18 @@ def clean_json_response(text):
         return json.loads(text)
     except:
         return {"exito": False, "motivo_error": "Error interno al leer el comprobante."}
+
+def metric_card(label, value):
+    st.markdown(f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value}</div></div>', unsafe_allow_html=True)
+
+def style_plotly(fig):
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="DM Sans", color="#718096", size=11),
+        title_font=dict(family="Manrope", size=16, color=NAVY, family="Manrope"),
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+    return fig
 
 inicializar_excels()
 
@@ -183,7 +187,6 @@ if vista == "✈️ Registro en pista":
                         
                         client = anthropic.Anthropic(api_key=api_key)
                         
-                        # PROMPT ACTUALIZADO: IA da instrucciones al piloto si algo sale mal
                         prompt = """
                         Eres el asistente de revisión de tiquetes de combustible de Moon Aerolínea.
                         Analiza la imagen. Debes extraer: recibo, fecha_consumo, matricula, producto, ruta, consumo, piloto.
@@ -207,7 +210,6 @@ if vista == "✈️ Registro en pista":
                         datos = clean_json_response(response.content[0].text)
 
                         if not datos.get("exito"):
-                            # Mensaje dinámico de la IA corrigiendo al piloto
                             st.error(f"📸 **Problema con la foto:** {datos.get('motivo_error', 'La imagen no es clara. Por favor, tómala de nuevo.')}")
                         else:
                             galones = float(datos.get("consumo", 0.0) or 0.0)
@@ -218,7 +220,6 @@ if vista == "✈️ Registro en pista":
                             with open(os.path.join(CARPETA_IMAGENES, nombre_imagen), "wb") as f:
                                 f.write(image_bytes)
 
-                            # Guardar en Diario
                             df_diario = pd.read_excel(RUTA_DIARIO)
                             nuevo_registro = pd.DataFrame([{
                                 "FECHA REGISTRO": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "RECIBO": datos.get("recibo"),
@@ -230,7 +231,7 @@ if vista == "✈️ Registro en pista":
                             df_diario = pd.concat([df_diario, nuevo_registro], ignore_index=True)
                             df_diario.to_excel(RUTA_DIARIO, index=False)
 
-                            st.balloons() # Animación interactiva de éxito
+                            st.balloons()
                             st.success(f"✅ ¡Excelente! Tiquete procesado correctamente ({galones:,.1f} GAL para {datos.get('matricula')}).")
                             st.info("La información ya está en la bandeja de Dirección para asignación de precios.")
 
@@ -238,7 +239,7 @@ if vista == "✈️ Registro en pista":
                         st.error("❌ Ocurrió un error de conexión con la IA. Intenta de nuevo.")
 
 # ============================================================
-# MÓDULO 2 | PANEL DIRECTIVO (EDITABLE)
+# MÓDULO 2 | PANEL DIRECTIVO (DASHBOARDS & EDICIÓN)
 # ============================================================
 elif vista == "📊 Panel directivo":
     st.markdown('<h1 class="page-title">Panel directivo</h1>', unsafe_allow_html=True)
@@ -267,23 +268,46 @@ elif vista == "📊 Panel directivo":
             <div class="hero-panel">
                 <div class="hero-kicker">FINANCIAL & OPERATIONS HUB</div>
                 <div class="hero-title">Centro de Mando Administrativo.</div>
-                <div class="hero-copy">Revisa, <strong>edita los datos libremente haciendo doble clic en las tablas</strong>, asigna precios y consolida reportes.</div>
+                <div class="hero-copy">Monitorea los indicadores de Power BI en tiempo real, <strong>edita los datos haciendo doble clic en las tablas</strong>, asigna precios y consolida reportes.</div>
             </div>
         """, unsafe_allow_html=True)
         
-        tab1, tab2 = st.tabs(["📅 CIERRE DIARIO", "📊 HISTÓRICO MAESTRO"])
+        tab1, tab2 = st.tabs(["📅 DASHBOARD DIARIO (Cierre)", "📊 DASHBOARD MAESTRO (Mensual)"])
 
         # -------------------------------------
-        # PESTAÑA 1: CIERRE DEL DÍA (Editable)
+        # PESTAÑA 1: DASHBOARD DIARIO
         # -------------------------------------
         with tab1:
             df_diario = cargar_datos(RUTA_DIARIO)
-            st.markdown('<div class="section-heading">Bandeja de Entrada: Tiquetes de Hoy</div>', unsafe_allow_html=True)
             
             if df_diario.empty:
                 st.info("🍃 No hay tiquetes pendientes de procesar hoy.")
             else:
-                st.write("✏️ *Nota: Puedes hacer doble clic en cualquier celda para corregir rutas, galones o nombres antes de guardar.*")
+                # Asegurar formatos numéricos para los gráficos
+                df_diario["CONSUMO (GAL)"] = pd.to_numeric(df_diario["CONSUMO (GAL)"], errors='coerce').fillna(0)
+                df_diario["VALOR TOTAL"] = pd.to_numeric(df_diario["VALOR TOTAL"], errors='coerce').fillna(0)
+                
+                # --- KPI DIARIOS ---
+                c1, c2, c3 = st.columns(3)
+                with c1: metric_card("Tiquetes Hoy", f"{len(df_diario):,}")
+                with c2: metric_card("Volumen Hoy", f"{df_diario['CONSUMO (GAL)'].sum():,.1f} GAL")
+                with c3: metric_card("Gasto Diario Estimado", f"$ {df_diario['VALOR TOTAL'].sum():,.0f} COP")
+                
+                # --- GRÁFICOS DIARIOS (Power BI style) ---
+                g1, g2 = st.columns(2)
+                with g1:
+                    df_ruta = df_diario.groupby("RUTA", as_index=False)["CONSUMO (GAL)"].sum().sort_values("CONSUMO (GAL)", ascending=False)
+                    fig_ruta = px.bar(df_ruta, x="RUTA", y="CONSUMO (GAL)", title="Galones por Ruta (Hoy)", color_discrete_sequence=[BLUE], text_auto='.1f')
+                    st.plotly_chart(style_plotly(fig_ruta), use_container_width=True)
+                with g2:
+                    # Mostrar qué pilotos enviaron facturas hoy y cuántos tiquetes
+                    df_pilotos = df_diario["PILOTO"].value_counts().reset_index()
+                    df_pilotos.columns = ["Piloto", "Facturas"]
+                    fig_pilotos = px.pie(df_pilotos, names="Piloto", values="Facturas", title="Facturas enviadas por Piloto (Hoy)", hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r)
+                    st.plotly_chart(style_plotly(fig_pilotos), use_container_width=True)
+
+                st.markdown('<div class="section-heading">Bandeja de Entrada: Tabla Editable</div>', unsafe_allow_html=True)
+                st.write("✏️ *Puedes hacer doble clic en cualquier celda para corregir datos antes de guardar.*")
                 
                 # TABLA INTERACTIVA Y EDITABLE
                 df_diario_editado = st.data_editor(df_diario, num_rows="dynamic", use_container_width=True, key="editor_diario")
@@ -294,19 +318,19 @@ elif vista == "📊 Panel directivo":
                 
                 st.markdown("---")
                 st.markdown('<div class="section-heading">Fijar Precio y Consolidar</div>', unsafe_allow_html=True)
-                c1, c2 = st.columns(2)
+                c_p1, c_p2 = st.columns(2)
                 
-                with c1:
+                with c_p1:
                     precio_dia = st.number_input("💵 Precio del combustible hoy (COP):", value=19500.0, step=100.0)
-                    if st.button("Aplicar Precio al Excel"):
+                    if st.button("Aplicar Precio al Excel y Gráficos"):
                         df_diario_editado["VALOR UNIT"] = precio_dia
                         df_diario_editado["VALOR TOTAL"] = pd.to_numeric(df_diario_editado["CONSUMO (GAL)"], errors='coerce').fillna(0) * precio_dia
                         df_diario_editado["OBSERVACION"] = "Validado por Dirección"
                         df_diario_editado.to_excel(RUTA_DIARIO, index=False)
-                        st.success("✅ Cálculos generados.")
+                        st.success("✅ Cálculos generados. Los gráficos de Gasto Diario se han actualizado.")
                         st.rerun()
 
-                with c2:
+                with c_p2:
                     with open(RUTA_DIARIO, "rb") as f:
                         st.download_button("⬇️ 1. Descargar Excel del Día", data=f.read(), file_name=f"Moon_Diario_{datetime.now().strftime('%Y%m%d')}.xlsx", use_container_width=True)
                     
@@ -314,22 +338,44 @@ elif vista == "📊 Panel directivo":
                         df_maestro = cargar_datos(RUTA_MAESTRO)
                         df_maestro = pd.concat([df_maestro, df_diario_editado], ignore_index=True)
                         df_maestro.to_excel(RUTA_MAESTRO, index=False)
-                        pd.DataFrame(columns=CABECERAS).to_excel(RUTA_DIARIO, index=False) # Limpia el diario
+                        pd.DataFrame(columns=CABECERAS).to_excel(RUTA_DIARIO, index=False)
                         st.balloons()
                         st.success("Día cerrado exitosamente. Datos movidos al Maestro.")
                         time.sleep(2)
                         st.rerun()
 
         # -------------------------------------
-        # PESTAÑA 2: HISTÓRICO MAESTRO (Editable)
+        # PESTAÑA 2: DASHBOARD MAESTRO (Histórico)
         # -------------------------------------
         with tab2:
             df_maestro = cargar_datos(RUTA_MAESTRO)
             if df_maestro.empty:
-                st.info("El historial está vacío por ahora.")
+                st.info("El historial está vacío por ahora. Cierra un día para ver los gráficos históricos.")
             else:
-                st.markdown('<div class="section-heading">Base de Datos General</div>', unsafe_allow_html=True)
-                st.write("✏️ *Si notas un error de días pasados, puedes editarlo aquí abajo y guardar.*")
+                df_maestro["CONSUMO (GAL)"] = pd.to_numeric(df_maestro["CONSUMO (GAL)"], errors='coerce').fillna(0)
+                df_maestro["VALOR TOTAL"] = pd.to_numeric(df_maestro["VALOR TOTAL"], errors='coerce').fillna(0)
+                
+                # --- KPI MAESTROS ---
+                st.markdown('<div class="section-heading">Indicadores Globales (Consolidado)</div>', unsafe_allow_html=True)
+                k1, k2, k3 = st.columns(3)
+                with k1: metric_card("Tiquetes Históricos", f"{len(df_maestro):,}")
+                with k2: metric_card("Galones Históricos", f"{df_maestro['CONSUMO (GAL)'].sum():,.1f} GAL")
+                with k3: metric_card("Inversión Histórica", f"$ {df_maestro['VALOR TOTAL'].sum():,.0f} COP")
+
+                # --- GRÁFICOS MAESTROS (Power BI style) ---
+                mg1, mg2 = st.columns(2)
+                with mg1:
+                    df_mat = df_maestro.groupby("MATRICULA", as_index=False)["CONSUMO (GAL)"].sum().sort_values("CONSUMO (GAL)")
+                    fig_mat = px.bar(df_mat, x="CONSUMO (GAL)", y="MATRICULA", orientation='h', title="Consumo Histórico por Aeronave", color_discrete_sequence=[NAVY], text_auto='.1f')
+                    st.plotly_chart(style_plotly(fig_mat), use_container_width=True)
+                with mg2:
+                    df_gasto_ruta = df_maestro.groupby("RUTA", as_index=False)["VALOR TOTAL"].sum()
+                    fig_gasto = px.pie(df_gasto_ruta, names="RUTA", values="VALOR TOTAL", title="Distribución de Gasto por Destino", hole=0.4, color_discrete_sequence=px.colors.sequential.Blues_r)
+                    fig_gasto.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(style_plotly(fig_gasto), use_container_width=True)
+
+                st.markdown('<div class="section-heading">Base de Datos General (Tabla Editable)</div>', unsafe_allow_html=True)
+                st.write("✏️ *Si notas un error de días pasados, puedes editarlo directamente en esta tabla y guardar.*")
                 
                 # TABLA HISTÓRICA EDITABLE
                 df_maestro_editado = st.data_editor(df_maestro, num_rows="dynamic", use_container_width=True, key="editor_maestro")
@@ -338,7 +384,7 @@ elif vista == "📊 Panel directivo":
                 with col_save:
                     if st.button("💾 Guardar cambios en Histórico"):
                         df_maestro_editado.to_excel(RUTA_MAESTRO, index=False)
-                        st.success("¡Historial actualizado!")
+                        st.success("¡Historial actualizado! Los gráficos generales se han recalculado.")
                 with col_down:
                     with open(RUTA_MAESTRO, "rb") as f:
                         st.download_button("⬇️ Descargar Excel Histórico Mensual", data=f.read(), file_name="Moon_Base_Maestra_General.xlsx", use_container_width=True)
