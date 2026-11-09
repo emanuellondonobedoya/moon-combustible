@@ -128,7 +128,7 @@ def style_plotly(fig):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="DM Sans", color="#718096", size=11),
-        title_font=dict(family="Manrope", size=16, color=NAVY, family="Manrope"),
+        title_font=dict(family="Manrope", size=16, color=NAVY),
         margin=dict(l=20, r=20, t=50, b=20)
     )
     return fig
