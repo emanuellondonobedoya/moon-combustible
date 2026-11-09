@@ -4,6 +4,7 @@ import re
 import hmac
 import base64
 import shutil
+import time
 from datetime import datetime
 
 import openpyxl
@@ -13,7 +14,7 @@ import streamlit as st
 import anthropic
 
 # ============================================================
-# MOON · AEROLÍNEA | FUEL INTELLIGENCE (Powered by Claude)
+# MOON · AEROLÍNEA | FUEL INTELLIGENCE (Interactive & Editable)
 # ============================================================
 
 st.set_page_config(
@@ -24,59 +25,76 @@ st.set_page_config(
 )
 
 # ----------------------------
-# Identidad visual y Estilos
+# Identidad visual, CSS y Animaciones
 # ----------------------------
 NAVY = "#0B1D33"
-NAVY_2 = "#142D4C"
 BLUE = "#356B9A"
-GOLD = "#C7A66A"
 INK = "#17283D"
-MUTED = "#718096"
-CANVAS = "#F3F6FA"
-BORDER = "#E5EAF1"
 WHITE = "#FFFFFF"
 
 st.markdown(
     f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-    :root {{ --moon-navy: {NAVY}; --moon-navy-2: {NAVY_2}; --moon-blue: {BLUE}; --moon-ink: {INK}; --moon-muted: {MUTED}; --moon-canvas: {CANVAS}; --moon-border: {BORDER}; }}
-    html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; color: var(--moon-ink); }}
-    .stApp {{ background: var(--moon-canvas); }}
-    [data-testid="stHeader"] {{ background: transparent; }}
-    .block-container {{ max-width: 1500px; padding-top: 2.1rem; padding-bottom: 3rem; }}
     
-    /* Sidebar */
-    [data-testid="stSidebar"] {{ background: linear-gradient(180deg, {NAVY} 0%, #102944 100%); border-right: 1px solid rgba(255,255,255,.07); }}
-    [data-testid="stSidebar"] [data-testid="stRadio"] label {{ color: #DCE5EF !important; font-weight: 600; }}
-    .brand-lockup {{ display:flex; align-items:center; gap:12px; padding: 10px 8px 22px 8px; }}
-    .brand-symbol {{ width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; color:#F4E7C9; font-family:'Manrope',sans-serif; font-weight:800; font-size:22px; background:linear-gradient(145deg, #1D4268, #0C2038); border:1px solid rgba(199,166,106,.55); }}
-    .brand-name {{ color:#FFFFFF; font-family:'Manrope',sans-serif; font-size:17px; font-weight:800; letter-spacing:2.2px; line-height:1.1; }}
-    .brand-sub {{ color:#9EB0C5; font-size:9px; letter-spacing:2.1px; margin-top:5px; }}
+    html, body, [class*="css"] {{ font-family: 'DM Sans', sans-serif; color: {INK}; }}
+    .stApp {{ background-color: #F4F7FB; }}
     
-    /* Títulos y Tarjetas */
-    .page-title {{ color: {NAVY} !important; font-family:'Manrope',sans-serif; font-weight:800; font-size:clamp(27px, 3vw, 38px); letter-spacing:-1.3px; line-height:1.12; margin:0; }}
-    .hero-panel {{ position:relative; overflow:hidden; border-radius:22px; padding:27px 30px; margin: 8px 0 24px 0; background:linear-gradient(115deg, {NAVY} 0%, #12375A 62%, #1A4568 100%); }}
+    /* CORRECCIÓN: Textos blancos invisibles y Caja de subida */
+    .stFileUploader label, .stTextInput label, .stNumberInput label {{
+        color: {NAVY} !important;
+        font-weight: 800 !important;
+        font-size: 14px !important;
+    }}
+    [data-testid="stFileUploadDropzone"] {{
+        background-color: #FFFFFF !important;
+        border: 2px dashed #AABCD0 !important;
+        border-radius: 16px !important;
+        transition: all 0.3s ease;
+    }}
+    [data-testid="stFileUploadDropzone"]:hover {{
+        border-color: {BLUE} !important;
+        background-color: #F0F4F8 !important;
+    }}
+    [data-testid="stFileUploadDropzone"] * {{ color: {INK} !important; }}
+    
+    /* ANIMACIÓN: Marca Hero flotante */
+    @keyframes float {{
+        0% {{ transform: translateY(-50%); }}
+        50% {{ transform: translateY(-56%); }}
+        100% {{ transform: translateY(-50%); }}
+    }}
+    .hero-mark {{
+        position:absolute; right:32px; top:50%;
+        color:rgba(232,214,180,.85); font-family:'Manrope',sans-serif; 
+        font-weight:800; font-size:54px; opacity:.82;
+        animation: float 4s ease-in-out infinite; /* Animación de movimiento */
+    }}
+
+    /* DISEÑO DE PANELES */
+    .hero-panel {{ position:relative; overflow:hidden; border-radius:22px; padding:27px 30px; margin: 8px 0 24px 0; background:linear-gradient(115deg, {NAVY} 0%, #12375A 62%, #1A4568 100%); box-shadow: 0 10px 25px rgba(11,29,51,0.15); }}
     .hero-kicker {{ color:#D9C39A; font-size:10px; font-weight:800; letter-spacing:2px; text-transform:uppercase; }}
     .hero-title {{ color:#FFFFFF; font-family:'Manrope',sans-serif; font-size:25px; font-weight:800; letter-spacing:-.6px; margin-top:8px; }}
     .hero-copy {{ color:#C3D0DE; font-size:13px; margin-top:7px; max-width:650px; line-height:1.6; }}
-    .hero-mark {{ position:absolute; right:32px; top:50%; transform:translateY(-50%); color:rgba(232,214,180,.85); font-family:'Manrope',sans-serif; font-weight:800; font-size:54px; letter-spacing:-5px; opacity:.82; }}
     
+    .page-title {{ color: {NAVY} !important; font-family:'Manrope',sans-serif; font-weight:800; font-size:clamp(27px, 3vw, 38px); letter-spacing:-1.3px; line-height:1.12; margin:0; }}
     .section-heading {{ color:{NAVY}; font-family:'Manrope',sans-serif; font-size:17px; font-weight:800; letter-spacing:-.3px; margin: 22px 0 4px 0; }}
-    .metric-card {{ background:{WHITE}; border:1px solid {BORDER}; border-radius:16px; padding:17px 18px 16px 18px; min-height:118px; }}
-    .metric-label {{ color:{MUTED}; font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }}
-    .metric-value {{ color:{NAVY}; font-family:'Manrope',sans-serif; font-size:25px; font-weight:800; letter-spacing:-.8px; margin-top:10px; line-height:1.15; }}
     
-    /* Controles y Visibilidad */
-    .stTextInput input, .stNumberInput input {{ border-radius:10px !important; background:#FFFFFF !important; color: #0B1D33 !important; font-weight: 700 !important; }}
-    .stButton > button {{ border-radius:10px !important; background:{NAVY} !important; color:#FFFFFF !important; font-weight:700 !important; }}
+    /* BOTONES INTERACTIVOS */
+    .stButton > button {{
+        border-radius:12px !important; background:{NAVY} !important; color:{WHITE} !important; 
+        font-weight:700 !important; border: none !important; transition: all 0.3s ease !important;
+    }}
+    .stButton > button:hover {{
+        background:#12375A !important; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(11,29,51,0.2);
+    }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ----------------------------
-# Configuración y utilidades (DOS BASES DE DATOS)
+# Configuración (Bases de Datos)
 # ----------------------------
 CARPETA_IMAGENES = "imagenes_tiquetes"
 RUTA_DIARIO = "Registro_Diario_Moon.xlsx"
@@ -91,8 +109,7 @@ os.makedirs(CARPETA_IMAGENES, exist_ok=True)
 def inicializar_excels():
     for ruta in [RUTA_DIARIO, RUTA_MAESTRO]:
         if not os.path.exists(ruta):
-            df = pd.DataFrame(columns=CABECERAS)
-            df.to_excel(ruta, index=False)
+            pd.DataFrame(columns=CABECERAS).to_excel(ruta, index=False)
 
 def cargar_datos(ruta):
     try:
@@ -100,11 +117,8 @@ def cargar_datos(ruta):
         for col in CABECERAS:
             if col not in df.columns: df[col] = None
         return df[CABECERAS]
-    except Exception:
+    except:
         return pd.DataFrame(columns=CABECERAS)
-
-def formato_cop(valor):
-    return f"$ {valor:,.0f} COP".replace(",", ".")
 
 def clean_json_response(text):
     text = (text or "").strip()
@@ -113,36 +127,30 @@ def clean_json_response(text):
     try:
         return json.loads(text)
     except:
-        return {"exito": False}
+        return {"exito": False, "motivo_error": "Error interno al leer el comprobante."}
 
 inicializar_excels()
 
 # ----------------------------
 # Barra Lateral
 # ----------------------------
-st.sidebar.markdown("""
-    <div class="brand-lockup">
-        <div class="brand-symbol">M</div>
-        <div>
-            <div class="brand-name">MOON</div>
-            <div class="brand-sub">AEROLÍNEA · OPERACIONES</div>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
-vista = st.sidebar.radio("MÓDULOS", ["Registro en pista", "Panel directivo"], label_visibility="collapsed")
+with st.sidebar:
+    st.markdown("### 🌙 MOON · AEROLÍNEA")
+    st.markdown("**Centro de Operaciones**")
+    st.markdown("---")
+    vista = st.radio("Navegación:", ["✈️ Registro en pista", "📊 Panel directivo"], label_visibility="collapsed")
 
 # ============================================================
 # MÓDULO 1 | REGISTRO EN PISTA (PILOTOS)
 # ============================================================
-if vista == "Registro en pista":
+if vista == "✈️ Registro en pista":
     st.markdown('<h1 class="page-title">Registro en pista</h1>', unsafe_allow_html=True)
     
     st.markdown("""
         <div class="hero-panel">
             <div class="hero-kicker">MOON AEROLÍNEA · DIGITAL RECORD</div>
             <div class="hero-title">Cada abastecimiento, bajo control.</div>
-            <div class="hero-copy">Sube el comprobante. La información se extraerá automáticamente para la validación administrativa al final del día.</div>
+            <div class="hero-copy">Sube el comprobante. Nuestro sistema inteligente analizará la imagen al instante.</div>
             <div class="hero-mark">M.</div>
         </div>
     """, unsafe_allow_html=True)
@@ -151,25 +159,23 @@ if vista == "Registro en pista":
     
     with col_form:
         st.markdown('<div class="section-heading">Nuevo registro de combustible</div>', unsafe_allow_html=True)
-        st.info("✈️ **Pilotos:** Solo carguen la imagen del tiquete. Dirección fijará el precio al cerrar el día.")
-        
-        archivo_subido = st.file_uploader("COMPROBANTE DE ABASTECIMIENTO", type=["jpg", "jpeg", "png"])
-        procesar = st.button("Procesar y registrar comprobante", use_container_width=True, type="primary")
+        archivo_subido = st.file_uploader("COMPROBANTE DE ABASTECIMIENTO (Terpel)", type=["jpg", "jpeg", "png"])
+        procesar = st.button("Procesar y enviar a Dirección", use_container_width=True)
 
     with col_context:
-        st.markdown('<div class="section-heading">Soporte</div>', unsafe_allow_html=True)
         if archivo_subido is not None:
-            st.image(archivo_subido, use_container_width=True, caption="Soporte cargado")
+            st.image(archivo_subido, use_container_width=True, caption="Vista previa del recibo")
 
     if procesar:
         if archivo_subido is None:
-            st.warning("⚠️ Primero carga una fotografía del comprobante.")
+            st.warning("⚠️ Debes cargar una fotografía del comprobante primero.")
         else:
             api_key = st.secrets.get("ANTHROPIC_API_KEY")
             if not api_key:
-                st.error("❌ No se encontró ANTHROPIC_API_KEY en los Secrets.")
+                st.error("❌ Falla técnica: No se encontró la llave de la IA.")
             else:
-                with st.spinner("Leyendo comprobante Terpel..."):
+                st.toast("Iniciando escaneo de imagen...", icon="🔍")
+                with st.spinner("La Inteligencia Artificial está validando el tiquete..."):
                     try:
                         image_bytes = archivo_subido.getvalue()
                         mime_type = archivo_subido.type or "image/jpeg"
@@ -177,17 +183,19 @@ if vista == "Registro en pista":
                         
                         client = anthropic.Anthropic(api_key=api_key)
                         
+                        # PROMPT ACTUALIZADO: IA da instrucciones al piloto si algo sale mal
                         prompt = """
-                        Analiza esta imagen de un tiquete de combustible de una aeronave. Extrae:
-                        - "recibo": Número del tiquete.
-                        - "fecha_consumo": Fecha en formato YYYY-MM-DD.
-                        - "matricula": Matrícula del avión.
-                        - "producto": Tipo de combustible.
-                        - "ruta": Destino o ruta.
-                        - "consumo": Volumen total en galones (solo número).
-                        - "piloto": Nombre de quien firma, si es legible.
-                        Devuelve ÚNICAMENTE un objeto JSON válido.
-                        {"exito": true, "recibo": "...", "fecha_consumo": "...", "matricula": "...", "producto": "...", "ruta": "...", "consumo": 0.0, "piloto": "..."}
+                        Eres el asistente de revisión de tiquetes de combustible de Moon Aerolínea.
+                        Analiza la imagen. Debes extraer: recibo, fecha_consumo, matricula, producto, ruta, consumo, piloto.
+                        
+                        REGLA ESTRICTA:
+                        Si la imagen es muy borrosa, está cortada, o NO SE LEE CLARAMENTE el volumen de galones ("consumo"), 
+                        debes devolver "exito": false y redactar un "motivo_error" amigable explicando al piloto por qué debe tomar de nuevo la foto.
+                        
+                        Ejemplo de error: {"exito": false, "motivo_error": "¡Hola piloto! La parte inferior del recibo está cortada y no logro ver los galones. ¿Podrías tomar la foto un poco más lejos?"}
+                        
+                        Si todo está perfecto, devuelve:
+                        {"exito": true, "motivo_error": "", "recibo": "...", "fecha_consumo": "...", "matricula": "...", "producto": "...", "ruta": "...", "consumo": 0.0, "piloto": "..."}
                         """
                         
                         response = client.messages.create(
@@ -199,7 +207,8 @@ if vista == "Registro en pista":
                         datos = clean_json_response(response.content[0].text)
 
                         if not datos.get("exito"):
-                            st.error("❌ No fue posible leer el comprobante. Intenta con una foto más clara.")
+                            # Mensaje dinámico de la IA corrigiendo al piloto
+                            st.error(f"📸 **Problema con la foto:** {datos.get('motivo_error', 'La imagen no es clara. Por favor, tómala de nuevo.')}")
                         else:
                             galones = float(datos.get("consumo", 0.0) or 0.0)
                             fecha_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -209,132 +218,127 @@ if vista == "Registro en pista":
                             with open(os.path.join(CARPETA_IMAGENES, nombre_imagen), "wb") as f:
                                 f.write(image_bytes)
 
-                            # Guardar en DIARIO con precios en 0 (esperando a Dirección)
+                            # Guardar en Diario
                             df_diario = pd.read_excel(RUTA_DIARIO)
                             nuevo_registro = pd.DataFrame([{
                                 "FECHA REGISTRO": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "RECIBO": datos.get("recibo"),
                                 "FECHA CONSUMO": datos.get("fecha_consumo"), "MATRICULA": datos.get("matricula"),
                                 "PRODUCTO": datos.get("producto"), "RUTA": datos.get("ruta"), "CONSUMO (GAL)": galones,
                                 "VALOR UNIT": 0.0, "VALOR TOTAL": 0.0, "PILOTO": datos.get("piloto"),
-                                "NOMENCLATURA IMAGEN": nombre_imagen, "OBSERVACION": "Pendiente fijar precio"
+                                "NOMENCLATURA IMAGEN": nombre_imagen, "OBSERVACION": "Enviado desde Pista"
                             }])
                             df_diario = pd.concat([df_diario, nuevo_registro], ignore_index=True)
                             df_diario.to_excel(RUTA_DIARIO, index=False)
 
-                            st.success("✅ ¡Soporte enviado a Dirección!")
-                            st.info(f"Se registraron {galones:,.1f} GAL para la aeronave {datos.get('matricula')}.")
+                            st.balloons() # Animación interactiva de éxito
+                            st.success(f"✅ ¡Excelente! Tiquete procesado correctamente ({galones:,.1f} GAL para {datos.get('matricula')}).")
+                            st.info("La información ya está en la bandeja de Dirección para asignación de precios.")
 
                     except Exception as exc:
-                        st.error(f"❌ Error: {exc}")
+                        st.error("❌ Ocurrió un error de conexión con la IA. Intenta de nuevo.")
 
 # ============================================================
-# MÓDULO 2 | PANEL DIRECTIVO (DIRECCIÓN)
+# MÓDULO 2 | PANEL DIRECTIVO (EDITABLE)
 # ============================================================
-elif vista == "Panel directivo":
+elif vista == "📊 Panel directivo":
     st.markdown('<h1 class="page-title">Panel directivo</h1>', unsafe_allow_html=True)
     
-    if "moon_authenticated" not in st.session_state:
-        st.session_state.moon_authenticated = False
+    if "moon_auth" not in st.session_state:
+        st.session_state.moon_auth = False
 
-    if not st.session_state.moon_authenticated:
-        with st.form("moon_login"):
-            clave = st.text_input("CONTRASEÑA ADMINISTRATIVA", type="password")
-            ingresar = st.form_submit_button("Ingresar al panel")
+    if not st.session_state.moon_auth:
+        with st.form("login"):
+            clave = st.text_input("🔐 CONTRASEÑA EJECUTIVA", type="password")
+            ingresar = st.form_submit_button("Acceder al Sistema")
         if ingresar:
             if hmac.compare_digest(str(clave), str(st.secrets.get("ADMIN_PASSWORD", "adminmoon"))):
-                st.session_state.moon_authenticated = True
+                st.session_state.moon_auth = True
                 st.rerun()
             else:
-                st.error("❌ Credenciales incorrectas.")
+                st.error("❌ Acceso denegado.")
     else:
-        if st.button("Cerrar sesión"):
-            st.session_state.moon_authenticated = False
-            st.rerun()
+        col_header, col_logout = st.columns([5,1])
+        with col_logout:
+            if st.button("Cerrar Sesión"):
+                st.session_state.moon_auth = False
+                st.rerun()
 
         st.markdown("""
             <div class="hero-panel">
-                <div class="hero-kicker">EXECUTIVE OVERVIEW</div>
-                <div class="hero-title">Gestión Financiera de Flota.</div>
-                <div class="hero-copy">Asigna precios a los reportes diarios, descarga los informes y consolídalos en la base maestra mensual.</div>
+                <div class="hero-kicker">FINANCIAL & OPERATIONS HUB</div>
+                <div class="hero-title">Centro de Mando Administrativo.</div>
+                <div class="hero-copy">Revisa, <strong>edita los datos libremente haciendo doble clic en las tablas</strong>, asigna precios y consolida reportes.</div>
             </div>
         """, unsafe_allow_html=True)
         
-        tab1, tab2 = st.tabs(["📅 CIERRE DEL DÍA (Reportes Pilotos)", "📊 BASE DE DATOS MAESTRA (Histórico)"])
+        tab1, tab2 = st.tabs(["📅 CIERRE DIARIO", "📊 HISTÓRICO MAESTRO"])
 
-        # -------------------------------------------------------------------
-        # PESTAÑA 1: GESTIÓN DEL DÍA
-        # -------------------------------------------------------------------
+        # -------------------------------------
+        # PESTAÑA 1: CIERRE DEL DÍA (Editable)
+        # -------------------------------------
         with tab1:
             df_diario = cargar_datos(RUTA_DIARIO)
-            st.markdown('<div class="section-heading">Tiquetes reportados hoy en pista</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-heading">Bandeja de Entrada: Tiquetes de Hoy</div>', unsafe_allow_html=True)
             
             if df_diario.empty:
-                st.info("No hay recibos pendientes de los pilotos por procesar el día de hoy.")
+                st.info("🍃 No hay tiquetes pendientes de procesar hoy.")
             else:
-                st.dataframe(df_diario, use_container_width=True, hide_index=True)
+                st.write("✏️ *Nota: Puedes hacer doble clic en cualquier celda para corregir rutas, galones o nombres antes de guardar.*")
                 
-                st.markdown('<div class="section-heading">1. Asignar precio de combustible del día</div>', unsafe_allow_html=True)
-                col_p1, col_p2 = st.columns([1, 2])
-                with col_p1:
-                    precio_dia = st.number_input("Precio por Galón (COP):", value=19500.0, step=100.0)
-                    if st.button("Aplicar Precio al Diario", type="primary"):
-                        df_diario["VALOR UNIT"] = precio_dia
-                        df_diario["VALOR TOTAL"] = pd.to_numeric(df_diario["CONSUMO (GAL)"], errors='coerce').fillna(0) * precio_dia
-                        df_diario["OBSERVACION"] = "Cerrado por Dirección"
-                        df_diario.to_excel(RUTA_DIARIO, index=False)
-                        st.success("✅ Precio aplicado a todos los registros de hoy.")
-                        st.rerun()
-                with col_p2:
-                    st.write("Al aplicar el precio, se actualizará el 'VALOR TOTAL' de todos los recibos de la tabla superior.")
-
+                # TABLA INTERACTIVA Y EDITABLE
+                df_diario_editado = st.data_editor(df_diario, num_rows="dynamic", use_container_width=True, key="editor_diario")
+                
+                if st.button("💾 Guardar correcciones manuales"):
+                    df_diario_editado.to_excel(RUTA_DIARIO, index=False)
+                    st.success("¡Base diaria actualizada!")
+                
                 st.markdown("---")
-                st.markdown('<div class="section-heading">2. Descargar y Consolidar</div>', unsafe_allow_html=True)
-                col_d1, col_d2 = st.columns(2)
+                st.markdown('<div class="section-heading">Fijar Precio y Consolidar</div>', unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
                 
-                with col_d1:
-                    with open(RUTA_DIARIO, "rb") as f:
-                        st.download_button("⬇️ 1. Descargar Excel del Día", data=f.read(), file_name=f"Moon_Combustible_Diario_{datetime.now().strftime('%Y%m%d')}.xlsx", use_container_width=True)
-                
-                with col_d2:
-                    if st.button("📦 2. Archivar al Histórico Mensual y Limpiar Día", use_container_width=True):
-                        # Pasar a la maestra
-                        df_maestro = cargar_datos(RUTA_MAESTRO)
-                        df_maestro = pd.concat([df_maestro, df_diario], ignore_index=True)
-                        df_maestro.to_excel(RUTA_MAESTRO, index=False)
-                        # Limpiar el diario
-                        pd.DataFrame(columns=CABECERAS).to_excel(RUTA_DIARIO, index=False)
-                        st.success("✅ Día consolidado con éxito. El panel diario está limpio para mañana.")
+                with c1:
+                    precio_dia = st.number_input("💵 Precio del combustible hoy (COP):", value=19500.0, step=100.0)
+                    if st.button("Aplicar Precio al Excel"):
+                        df_diario_editado["VALOR UNIT"] = precio_dia
+                        df_diario_editado["VALOR TOTAL"] = pd.to_numeric(df_diario_editado["CONSUMO (GAL)"], errors='coerce').fillna(0) * precio_dia
+                        df_diario_editado["OBSERVACION"] = "Validado por Dirección"
+                        df_diario_editado.to_excel(RUTA_DIARIO, index=False)
+                        st.success("✅ Cálculos generados.")
                         st.rerun()
 
-        # -------------------------------------------------------------------
-        # PESTAÑA 2: BASE DE DATOS HISTÓRICA (MAESTRA)
-        # -------------------------------------------------------------------
+                with c2:
+                    with open(RUTA_DIARIO, "rb") as f:
+                        st.download_button("⬇️ 1. Descargar Excel del Día", data=f.read(), file_name=f"Moon_Diario_{datetime.now().strftime('%Y%m%d')}.xlsx", use_container_width=True)
+                    
+                    if st.button("📦 2. Archivar en Histórico y Limpiar Día", use_container_width=True):
+                        df_maestro = cargar_datos(RUTA_MAESTRO)
+                        df_maestro = pd.concat([df_maestro, df_diario_editado], ignore_index=True)
+                        df_maestro.to_excel(RUTA_MAESTRO, index=False)
+                        pd.DataFrame(columns=CABECERAS).to_excel(RUTA_DIARIO, index=False) # Limpia el diario
+                        st.balloons()
+                        st.success("Día cerrado exitosamente. Datos movidos al Maestro.")
+                        time.sleep(2)
+                        st.rerun()
+
+        # -------------------------------------
+        # PESTAÑA 2: HISTÓRICO MAESTRO (Editable)
+        # -------------------------------------
         with tab2:
             df_maestro = cargar_datos(RUTA_MAESTRO)
             if df_maestro.empty:
-                st.info("La base de datos general está vacía. Consolida un cierre de día para ver los datos históricos.")
+                st.info("El historial está vacío por ahora.")
             else:
-                df_maestro["CONSUMO (GAL)"] = pd.to_numeric(df_maestro["CONSUMO (GAL)"], errors="coerce").fillna(0)
-                df_maestro["VALOR TOTAL"] = pd.to_numeric(df_maestro["VALOR TOTAL"], errors="coerce").fillna(0)
+                st.markdown('<div class="section-heading">Base de Datos General</div>', unsafe_allow_html=True)
+                st.write("✏️ *Si notas un error de días pasados, puedes editarlo aquí abajo y guardar.*")
                 
-                st.markdown('<div class="section-heading">Indicadores Acumulados (Global)</div>', unsafe_allow_html=True)
-                k1, k2, k3 = st.columns(3)
-                with k1: metric_card("Tiquetes Totales", f"{len(df_maestro):,}", "")
-                with k2: metric_card("Galones Históricos", f"{df_maestro['CONSUMO (GAL)'].sum():,.1f} GAL", "")
-                with k3: metric_card("Gasto Histórico", formato_cop(df_maestro["VALOR TOTAL"].sum()), "")
-
-                st.markdown('<div class="section-heading">Base de datos consolidada (Todos los días)</div>', unsafe_allow_html=True)
-                st.dataframe(df_maestro, use_container_width=True, hide_index=True)
+                # TABLA HISTÓRICA EDITABLE
+                df_maestro_editado = st.data_editor(df_maestro, num_rows="dynamic", use_container_width=True, key="editor_maestro")
                 
-                with open(RUTA_MAESTRO, "rb") as f:
-                    st.download_button("⬇️ Descargar Base de Datos Consolidada (Mensual)", data=f.read(), file_name="Moon_Base_Maestra_General.xlsx", type="primary")
-
-                with st.expander("⚠️ Mantenimiento Avanzado"):
-                    st.warning("Formateo de la Base Maestra")
-                    if st.button("Eliminar Todo el Historial y Base de Datos"):
-                        if os.path.exists(RUTA_MAESTRO): os.remove(RUTA_MAESTRO)
-                        if os.path.exists(RUTA_DIARIO): os.remove(RUTA_DIARIO)
-                        if os.path.exists(CARPETA_IMAGENES): shutil.rmtree(CARPETA_IMAGENES)
-                        inicializar_excels()
-                        st.success("Bases de datos reiniciadas de fábrica.")
-                        st.rerun()
+                col_save, col_down = st.columns(2)
+                with col_save:
+                    if st.button("💾 Guardar cambios en Histórico"):
+                        df_maestro_editado.to_excel(RUTA_MAESTRO, index=False)
+                        st.success("¡Historial actualizado!")
+                with col_down:
+                    with open(RUTA_MAESTRO, "rb") as f:
+                        st.download_button("⬇️ Descargar Excel Histórico Mensual", data=f.read(), file_name="Moon_Base_Maestra_General.xlsx", use_container_width=True)
